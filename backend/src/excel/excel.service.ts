@@ -9,52 +9,82 @@ export class ExcelService {
   private readonly templatePath = path.join(
     __dirname,
     '../../templates/template.xlsx',
-  ); // Template file path
+  );
 
-  // Export data to Excel using a template
   async exportToExcel(data: any[], res: Response): Promise<void> {
     if (!fs.existsSync(this.templatePath)) {
       throw new BadRequestException('Template file not found');
     }
 
-    // Load the template file
+    const workbook = await this.loadExcelTemplate();
+    const worksheet = this.getWorksheet(
+      workbook,
+      'Forecast Failure-Template(New)',
+    );
+    const headers = this.extractHeaders(worksheet);
+
+    this.populateWorksheetWithData(worksheet, data, headers);
+    await this.sendExcelResponse(workbook, res);
+  }
+
+  private async loadExcelTemplate(): Promise<ExcelJS.Workbook> {
     const workbook = new ExcelJS.Workbook();
     await workbook.xlsx.readFile(this.templatePath);
-    const worksheet = workbook.getWorksheet('Forecast Failure-Template(New)');
+    return workbook;
+  }
 
+  private getWorksheet(
+    workbook: ExcelJS.Workbook,
+    sheetName: string,
+  ): ExcelJS.Worksheet {
+    const worksheet = workbook.getWorksheet(sheetName);
     if (!worksheet) {
       throw new Error(
-        'Worksheet "Forecast Failure-Template(New)" not found in the template file.',
+        `Worksheet "${sheetName}" not found in the template file.`,
       );
     }
+    return worksheet;
+  }
 
-    // Extract headers from the uploaded file, trim whitespace, and remove empty values
+  private extractHeaders(worksheet: ExcelJS.Worksheet): string[] {
     let headers: string[] = worksheet.getRow(1).values as string[];
-    if (headers) {
-      headers = headers
-        .map((header) => (typeof header === 'string' ? header.trim() : header))
-        .filter((header) => header.length > 0);
-    }
+    return headers
+      ? headers
+          .map((header) =>
+            typeof header === 'string' ? header.trim() : header,
+          )
+          .filter((header) => header.length > 0)
+      : [];
+  }
 
-    // Append JSON data to worksheet
+  private populateWorksheetWithData(
+    worksheet: ExcelJS.Worksheet,
+    data: any[],
+    headers: string[],
+  ): void {
     data.forEach((item, index) => {
-      const row = worksheet.getRow(index + 2); // Start from second row since Row 2 onwards is where the data should be written.
+      const row = worksheet.getRow(index + 2);
       headers.forEach((header, colIndex) => {
-        row.getCell(colIndex + 1).value = item[header] || ''; // Fetches the correct cell in the row and Write Data to Each Cell
+        row.getCell(colIndex + 1).value = item[header] || '';
       });
       row.commit();
     });
+  }
 
-    // Generate buffer and send response
-    const buffer = await workbook.xlsx.writeBuffer();
+  private async sendExcelResponse(
+    workbook: ExcelJS.Workbook,
+    res: Response,
+  ): Promise<void> {
     res.setHeader(
       'Content-Disposition',
-      'attachment; filename="exported_data.xlsx"',
+      'attachment; filename=exported_data.xlsx',
     );
     res.setHeader(
       'Content-Type',
       'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
     );
-    res.send(buffer);
+
+    await workbook.xlsx.write(res);
+    res.end();
   }
 }
