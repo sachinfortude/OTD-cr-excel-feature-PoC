@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable } from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import * as fs from 'fs';
 import * as path from 'path';
 import * as ExcelJS from 'exceljs';
@@ -13,7 +13,7 @@ export class ExcelService {
 
   async exportToExcel(data: any[], res: Response): Promise<void> {
     if (!fs.existsSync(this.templatePath)) {
-      throw new BadRequestException('Template file not found');
+      throw new NotFoundException('Template file not found');
     }
 
     const workbook = await this.loadExcelTemplate();
@@ -77,7 +77,7 @@ export class ExcelService {
   ): Promise<void> {
     res.setHeader(
       'Content-Disposition',
-      'attachment; filename=exported_data.xlsx',
+      'attachment; filename=OTD_Failure_Categorization.xlsx',
     );
     res.setHeader(
       'Content-Type',
